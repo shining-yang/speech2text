@@ -1,14 +1,21 @@
+//
+// Practices on Speech Recognition.
+// Using Microsoft Speech API (SAPI) 5.3
+//
+// y.s.n@live.com, 2014-09
+//
 #include "stdafx.h"
 #include <windows.h>
 #include <sphelper.h>
 #include <string>
 #include "resource.h"
-#define WM_RECOEVENT    WM_USER+1
+#define WM_RECOEVENT        WM_USER+1
+#define SAMPLE_WAV_FILE     _T("3_f.wav")
 
 BOOL CALLBACK DlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam);
 void LaunchRecognition(HWND hWnd);
 void HandleEvent(HWND hWnd);
-WCHAR *ExtractInput(CSpEvent event);
+WCHAR *ExtractInput(CSpEvent& event);
 void CleanupSAPI();
 
 CComPtr<ISpRecognizer> g_cpEngine;
@@ -57,7 +64,7 @@ void LaunchRecognition(HWND hWnd)
     HRESULT hr = S_OK;
 
     if (FAILED(::CoInitialize(NULL))) {
-        throw std::string("Unable to initialise COM objects");
+        throw std::string("Unable to initialize COM objects");
     }
 
     CComPtr<ISpStream> spInputStream;
@@ -72,10 +79,9 @@ void LaunchRecognition(HWND hWnd)
         throw std::string("Fail to AssignFormat");
     }
 
-    GUID idFormat = inputFormat.FormatId();
-    hr = spInputStream->BindToFile(_T("output.wav"),
+    hr = spInputStream->BindToFile(SAMPLE_WAV_FILE,
         SPFM_OPEN_READONLY,
-        &idFormat,
+        &inputFormat.FormatId(),
         inputFormat.WaveFormatExPtr(),
         SPFEI_ALL_EVENTS);
     if (FAILED(hr)) {
@@ -104,18 +110,25 @@ void LaunchRecognition(HWND hWnd)
         throw std::string("Unable to select notification window");
     }
 
-    const ULONGLONG ullInterest = SPFEI(SPEI_SOUND_START) | SPFEI(SPEI_SOUND_END) |
+    const ULONGLONG ullInterest =
+#if 1
+        SPFEI(SPEI_SOUND_START) | SPFEI(SPEI_SOUND_END) |
         SPFEI(SPEI_PHRASE_START) | SPFEI(SPEI_RECOGNITION) |
         SPFEI(SPEI_FALSE_RECOGNITION) | SPFEI(SPEI_HYPOTHESIS) |
         SPFEI(SPEI_INTERFERENCE) | SPFEI(SPEI_RECO_OTHER_CONTEXT) |
         SPFEI(SPEI_REQUEST_UI) | SPFEI(SPEI_RECO_STATE_CHANGE) |
         SPFEI(SPEI_PROPERTY_NUM_CHANGE) | SPFEI(SPEI_PROPERTY_STRING_CHANGE);
+#else
+        SPFEI(SPEI_SOUND_START) | SPFEI(SPEI_SOUND_END) |
+        SPFEI(SPEI_RECOGNITION) | SPFEI(SPEI_END_INPUT_STREAM);
+#endif
+
     hr = g_cpRecoCtx->SetInterest(ullInterest, ullInterest);
     if (FAILED(hr)) {
         throw std::string("Failed to create interest");
     }
 
-    hr = g_cpRecoCtx->CreateGrammar(ullGramId, &g_cpRecoGrammar);
+    hr = g_cpRecoCtx->CreateGrammar(0, &g_cpRecoGrammar);
     if (FAILED(hr)) {
         throw std::string("Unable to create grammar");
     }
@@ -136,23 +149,29 @@ void HandleEvent(HWND hWnd)
     CSpEvent event;
     WCHAR  *pwszText;
 
+    static bool bFinishProcessing = false;
+    if (bFinishProcessing) {
+        return;
+    }
+
     // Loop processing events while there are any in the queue
     while (event.GetFrom(g_cpRecoCtx) == S_OK) {
         switch (event.eEventId) {
-        case SPEI_HYPOTHESIS:
-        {
+        case SPEI_RECOGNITION:
             pwszText = ExtractInput(event);
-            //MessageBoxW(NULL, pwszText, L"text", MB_ICONERROR);
-            wcscat(lpszBuffer, pwszText);
-            wcsncat(lpszBuffer, L"\r\n", 2);
+            _tcscat_s(lpszBuffer, MAX_PATH, pwszText);
             SetDlgItemTextW(hWnd, IDC_EDIT1, lpszBuffer);
-        }
+            break;
+        case SPEI_FALSE_RECOGNITION:
+            break;
+        case SPEI_END_SR_STREAM:
+            bFinishProcessing = true;
             break;
         }
     }
 }
 
-WCHAR *ExtractInput(CSpEvent event)
+WCHAR *ExtractInput(CSpEvent& event)
 {
     HRESULT                   hr = S_OK;
     CComPtr<ISpRecoResult>    cpRecoResult;
@@ -162,11 +181,9 @@ WCHAR *ExtractInput(CSpEvent event)
     cpRecoResult = event.RecoResult();
 
     hr = cpRecoResult->GetPhrase(&pPhrase);
-
     if (SUCCEEDED(hr)) {
         if (event.eEventId == SPEI_FALSE_RECOGNITION) {
             pwszText = L"False recognition";
-            //MessageBoxW(NULL, pwszText, L"text", MB_ICONERROR);
         } else {
             // Get the phrase's entire text string, including replacements.
             hr = cpRecoResult->GetText(SP_GETWHOLEPHRASE, SP_GETWHOLEPHRASE, TRUE, &pwszText, NULL);
