@@ -5,12 +5,9 @@
 // y.s.n@live.com, 2014-09
 //
 #include "stdafx.h"
-#include <windows.h>
-#include <sphelper.h>
-#include <string>
 #include "resource.h"
-#define WM_RECOEVENT        WM_USER+1
-#define SAMPLE_WAV_FILE     _T("3_f.wav")
+#define WM_RECOEVENT            WM_USER + 1
+#define SAMPLE_WAV_FILE         _T("sample.wav")
 
 BOOL CALLBACK DlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam);
 void LaunchRecognition(HWND hWnd);
@@ -21,18 +18,10 @@ void CleanupSAPI();
 CComPtr<ISpRecognizer> g_cpEngine;
 CComPtr<ISpRecoContext> g_cpRecoCtx;
 CComPtr<ISpRecoGrammar> g_cpRecoGrammar;
-WCHAR *lpszBuffer;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
-    // allocating memory for buffer this buffer is used to store
-    // the text during the speech recognition process
-    lpszBuffer = new WCHAR[MAX_PATH];
-    lpszBuffer[0] = 0;
-
     DialogBox(hInstance, MAKEINTRESOURCE(IDD_DIALOG1), NULL, DlgProc);
-    // freeing the memory that was allocated for the buffer
-    delete[] lpszBuffer;
     return 0;
 }
 
@@ -79,11 +68,13 @@ void LaunchRecognition(HWND hWnd)
         throw std::string("Fail to AssignFormat");
     }
 
-    hr = spInputStream->BindToFile(SAMPLE_WAV_FILE,
+    hr = spInputStream->BindToFile(
+        SAMPLE_WAV_FILE,
         SPFM_OPEN_READONLY,
         &inputFormat.FormatId(),
         inputFormat.WaveFormatExPtr(),
-        SPFEI_ALL_EVENTS);
+        SPFEI(SPEI_SOUND_START) | SPFEI(SPEI_SOUND_END) |
+        SPFEI(SPEI_PHRASE_START) | SPFEI(SPEI_RECOGNITION));
     if (FAILED(hr)) {
         throw std::string("Fail to BindToFile");
     }
@@ -111,17 +102,12 @@ void LaunchRecognition(HWND hWnd)
     }
 
     const ULONGLONG ullInterest =
-#if 1
         SPFEI(SPEI_SOUND_START) | SPFEI(SPEI_SOUND_END) |
         SPFEI(SPEI_PHRASE_START) | SPFEI(SPEI_RECOGNITION) |
         SPFEI(SPEI_FALSE_RECOGNITION) | SPFEI(SPEI_HYPOTHESIS) |
         SPFEI(SPEI_INTERFERENCE) | SPFEI(SPEI_RECO_OTHER_CONTEXT) |
         SPFEI(SPEI_REQUEST_UI) | SPFEI(SPEI_RECO_STATE_CHANGE) |
         SPFEI(SPEI_PROPERTY_NUM_CHANGE) | SPFEI(SPEI_PROPERTY_STRING_CHANGE);
-#else
-        SPFEI(SPEI_SOUND_START) | SPFEI(SPEI_SOUND_END) |
-        SPFEI(SPEI_RECOGNITION) | SPFEI(SPEI_END_INPUT_STREAM);
-#endif
 
     hr = g_cpRecoCtx->SetInterest(ullInterest, ullInterest);
     if (FAILED(hr)) {
@@ -159,8 +145,7 @@ void HandleEvent(HWND hWnd)
         switch (event.eEventId) {
         case SPEI_RECOGNITION:
             pwszText = ExtractInput(event);
-            _tcscat_s(lpszBuffer, MAX_PATH, pwszText);
-            SetDlgItemTextW(hWnd, IDC_EDIT1, lpszBuffer);
+            SetDlgItemTextW(hWnd, IDC_EDIT1, pwszText);
             break;
         case SPEI_FALSE_RECOGNITION:
             break;
