@@ -5,11 +5,9 @@
 // y.s.n@live.com, 2014-09
 //
 #include "stdafx.h"
-#include "WaveToText.h"
 #include "resource.h"
+#include "WaveToText.h"
 
-
-BOOL CALLBACK MainDiagProc(HWND hWnd, UINT Message, WPARAM wParam, LPARAM lParam);
 
 HINSTANCE g_hInst = NULL;
 CWaveToText wtt;
@@ -43,10 +41,35 @@ bool VerifyFileExisting(LPCTSTR lpszFile)
     }
 }
 
+void AppendRecognizedText(HWND hWnd, LPCTSTR lpszText)
+{
+    GETTEXTLENGTHEX gtlex;
+    gtlex.codepage = 1200;
+    gtlex.flags = GTL_DEFAULT;
+
+    int nCurLen;
+    nCurLen = (int)SendMessage(hWnd, EM_GETTEXTLENGTHEX, (WPARAM)&gtlex, 0);
+
+    CHARRANGE cr;
+    cr.cpMin = nCurLen;
+    cr.cpMax = -1;
+
+    // 将文本追加到末尾
+    SendMessage(hWnd, EM_EXSETSEL, 0, (LPARAM)&cr);
+    SendMessage(hWnd, EM_REPLACESEL, (WPARAM)&cr, (LPARAM)lpszText);
+
+    // 将滚动条移到最底端
+    SendMessage(hWnd, WM_VSCROLL, (WPARAM)SB_BOTTOM, 0);
+}
+
 void SpeechRecognitionCallback(WPARAM wParam, LPARAM lParam, LPCTSTR lpszText)
 {
     HWND hWnd = reinterpret_cast<HWND>(wParam);
-    ::SetDlgItemText(hWnd, IDC_RICHEDIT_RESULT, lpszText);
+    HWND hRichEdit = ::GetDlgItem(hWnd, IDC_RICHEDIT_RESULT);
+    if (hRichEdit) {
+        AppendRecognizedText(hRichEdit, lpszText);
+        AppendRecognizedText(hRichEdit, _T("\n"));
+    }
 }
 
 void LaunchRecognition(HWND hWnd)
@@ -58,6 +81,8 @@ void LaunchRecognition(HWND hWnd)
         ::MessageBox(hWnd, _T("No valid file was found."), _T("Error"), MB_OK);
         return;
     }
+
+    ::SetDlgItemText(hWnd, IDC_RICHEDIT_RESULT, _T(""));
 
     wtt.SetInputWaveFile(szFile);
     wtt.SetRecognitionCallback(SpeechRecognitionCallback, reinterpret_cast<WPARAM>(hWnd), 0);
@@ -93,6 +118,7 @@ BOOL CALLBACK MainDiagProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam
     switch (message) {
     case WM_INITDIALOG:
         break;
+
     case WM_COMMAND:
         switch (LOWORD(wParam)) {
         case IDC_BUTTON_BROWSE:
