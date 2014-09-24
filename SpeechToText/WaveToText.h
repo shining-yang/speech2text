@@ -2,7 +2,10 @@
 // File: WaveToText.h
 //
 // Declaration for class CWaveToText.
-// Convert speech which saved in wave format audio file to text.
+//
+// Convert wave audio file to text messages using Microsoft SAPI.
+//
+// Shining Yang <y.s.n@live.com>, 2014-09-24
 //
 #pragma once
 

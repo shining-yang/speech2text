@@ -1,6 +1,10 @@
 //
 // File: WaveToText
 //
+// Convert wave audio file to text messages using Microsoft SAPI.
+//
+// Shining Yang <y.s.n@live.com>, 2014-09-24
+//
 #include "stdafx.h"
 #include "WaveToText.h"
 
