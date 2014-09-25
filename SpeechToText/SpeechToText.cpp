@@ -72,6 +72,14 @@ void SpeechRecognitionCallback(WPARAM wParam, LPARAM lParam, LPCTSTR lpszText)
     }
 }
 
+void EnableDialogItem(HWND hDlg, UINT nIdDlgItem, BOOL bEnable)
+{
+    HWND hWndItem = ::GetDlgItem(hDlg, nIdDlgItem);
+    if (hWndItem) {
+        ::EnableWindow(hWndItem, bEnable);
+    }
+}
+
 void LaunchRecognition(HWND hWnd)
 {
     TCHAR szFile[MAX_PATH] = { 0 };
@@ -82,6 +90,8 @@ void LaunchRecognition(HWND hWnd)
         return;
     }
 
+    EnableDialogItem(hWnd, IDC_BUTTON_START, FALSE);
+    EnableDialogItem(hWnd, IDC_BUTTON_STOP, TRUE);
     ::SetDlgItemText(hWnd, IDC_RICHEDIT_RESULT, _T(""));
 
     wtt.SetInputWaveFile(szFile);
@@ -90,6 +100,12 @@ void LaunchRecognition(HWND hWnd)
         ::MessageBox(hWnd, _T("Fail to convert audio to text."), _T("Error"), MB_OK);
         return;
     }
+}
+
+void StopRecognition(HWND hWnd)
+{
+    EnableDialogItem(hWnd, IDC_BUTTON_START, TRUE);
+    EnableDialogItem(hWnd, IDC_BUTTON_STOP, FALSE);
 }
 
 INT_PTR CALLBACK AboutDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
@@ -113,10 +129,17 @@ void ShowAboutDialogBox(HWND hWnd)
     DialogBox(g_hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, AboutDialogProc);
 }
 
+void OnInitMainDialog(HWND hWnd)
+{
+    EnableDialogItem(hWnd, IDC_BUTTON_START, TRUE);
+    EnableDialogItem(hWnd, IDC_BUTTON_STOP, FALSE);
+}
+
 BOOL CALLBACK MainDiagProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message) {
     case WM_INITDIALOG:
+        OnInitMainDialog(hWnd);
         break;
 
     case WM_COMMAND:
@@ -128,6 +151,7 @@ BOOL CALLBACK MainDiagProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam
             LaunchRecognition(hWnd);
             break;
         case IDC_BUTTON_STOP:
+            StopRecognition(hWnd);
             break;
         case IDC_BUTTON_ABOUT:
             ShowAboutDialogBox(hWnd);
