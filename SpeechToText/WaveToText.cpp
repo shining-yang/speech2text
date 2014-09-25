@@ -121,14 +121,6 @@ int CWaveToText::Start()
 int CWaveToText::Stop()
 {
     m_context->SetContextState(SPCS_DISABLED);
-
-    if (m_fnRecognitionCallback) {
-        RECOG_NOTIFY_DATA nd;
-        nd.event = RECOG_ENDED;
-        nd.data = NULL;
-        (*m_fnRecognitionCallback)(m_wpCallback, m_lpCallback, &nd);
-    }
-
     return 0;
 }
 

@@ -9,8 +9,12 @@
 #include "WaveToText.h"
 
 
-HINSTANCE g_hInst = NULL;
-CWaveToText wtt;
+#define WM_NOTIFY_ICON          (WM_USER + 1)
+
+HINSTANCE           g_hInst = NULL;
+NOTIFYICONDATA      g_nid = { 0 };
+CWaveToText         g_wtt;
+BOOL                g_bChildWndShown = FALSE;
 
 void OnButtonBrowse(HWND hWnd)
 {
@@ -69,6 +73,7 @@ void EnableDialogItem(HWND hDlg, UINT nIdDlgItem, BOOL bEnable)
 
 void RecognitionNotifyStarted(HWND hWnd)
 {
+    EnableDialogItem(hWnd, IDC_BUTTON_STOP, TRUE);
     SetDlgItemText(hWnd, IDC_STATIC_LOG, _T("Recognition has started"));
 }
 
@@ -118,21 +123,24 @@ void LaunchRecognition(HWND hWnd)
         return;
     }
 
-    wtt.SetInputWaveFile(szFile);
-    wtt.SetRecognitionCallback(SpeechRecognitionCallback, reinterpret_cast<WPARAM>(hWnd), 0);
-    if (wtt.Start() != 0) {
+    EnableDialogItem(hWnd, IDC_BUTTON_START, FALSE);
+
+    g_wtt.SetInputWaveFile(szFile);
+    g_wtt.SetRecognitionCallback(SpeechRecognitionCallback, reinterpret_cast<WPARAM>(hWnd), 0);
+    if (g_wtt.Start() != 0) {
         ::MessageBox(hWnd, _T("Fail to convert audio to text."), _T("Error"), MB_OK);
+        EnableDialogItem(hWnd, IDC_BUTTON_START, TRUE);
         return;
     } else {
         SetDlgItemText(hWnd, IDC_RICHEDIT_RESULT, _T(""));
-        EnableDialogItem(hWnd, IDC_BUTTON_START, FALSE);
-        EnableDialogItem(hWnd, IDC_BUTTON_STOP, TRUE);
     }
 }
 
 void StopRecognition(HWND hWnd)
 {
-    wtt.Stop();
+    EnableDialogItem(hWnd, IDC_BUTTON_STOP, FALSE);
+
+    g_wtt.Stop();
 }
 
 INT_PTR CALLBACK AboutDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
@@ -162,6 +170,33 @@ void OnInitMainDialog(HWND hWnd)
     SetDlgItemText(hWnd, IDC_EDIT_INPUT_FILE, lpszText);
     EnableDialogItem(hWnd, IDC_BUTTON_START, TRUE);
     EnableDialogItem(hWnd, IDC_BUTTON_STOP, FALSE);
+
+    // {{ Shell Notification Icon
+    ZeroMemory(&g_nid, sizeof(NOTIFYICONDATA));
+    g_nid.cbSize = sizeof(NOTIFYICONDATA);
+    g_nid.hWnd = hWnd;
+    g_nid.hIcon = ::LoadIcon(g_hInst, MAKEINTRESOURCE(IDI_SPEECHTOTEXT));
+    g_nid.uCallbackMessage = WM_NOTIFY_ICON;
+    g_nid.uTimeout = 3000;
+    g_nid.uFlags = NIF_ICON | NIF_TIP | NIF_MESSAGE;
+    _tcscpy_s(g_nid.szTip, _T("SpeechToText\nConvert wave audio to text messages"));
+    _tcscpy_s(g_nid.szInfoTitle, _T("SpeechToText"));
+    _tcscpy_s(g_nid.szInfo, _T("Convert wave audio to text messages."));
+    Shell_NotifyIcon(NIM_ADD, &g_nid);
+    // }}
+}
+
+void ShowOrHideMainWindow(HWND hWnd)
+{
+    if (IsIconic(hWnd)) {
+        ShowWindow(hWnd, SW_RESTORE);
+        SetForegroundWindow(hWnd);
+    } else if (IsWindowVisible(hWnd) && !g_bChildWndShown) {
+        ShowWindow(hWnd, SW_HIDE);
+    } else {
+        ShowWindow(hWnd, SW_SHOW);
+        SetForegroundWindow(hWnd);
+    }
 }
 
 BOOL CALLBACK MainDiagProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -171,10 +206,22 @@ BOOL CALLBACK MainDiagProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam
         OnInitMainDialog(hWnd);
         break;
 
+    case WM_NOTIFY_ICON:
+        switch (static_cast<UINT>(lParam)) {
+        case WM_LBUTTONDOWN:
+            ShowOrHideMainWindow(hWnd);
+            break;
+        case WM_RBUTTONDOWN:
+            break;
+        }
+        break;
+
     case WM_COMMAND:
         switch (LOWORD(wParam)) {
         case IDC_BUTTON_BROWSE:
+            g_bChildWndShown = TRUE;
             OnButtonBrowse(hWnd);
+            g_bChildWndShown = FALSE;
             break;
         case IDC_BUTTON_START:
             LaunchRecognition(hWnd);
@@ -183,16 +230,22 @@ BOOL CALLBACK MainDiagProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam
             StopRecognition(hWnd);
             break;
         case IDC_BUTTON_ABOUT:
+            g_bChildWndShown = TRUE;
             ShowAboutDialogBox(hWnd);
+            g_bChildWndShown = FALSE;
             break;
         }
         break;
+
     case WM_CLOSE:
+        Shell_NotifyIcon(NIM_DELETE, &g_nid);
         EndDialog(hWnd, 0);
         break;
+
     default:
         return FALSE;
     }
+
     return TRUE;
 }
 
