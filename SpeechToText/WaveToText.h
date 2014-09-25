@@ -12,7 +12,20 @@
 #include <sapi.h>
 #include <string>
 
-typedef void (*RECOGNITIONFUNC)(WPARAM wParam, LPARAM lParam, LPCTSTR lpszText);
+typedef enum RECOG_NOTIFY_EVENT_t
+{
+    RECOG_STARTED,
+    RECOG_ENDED,
+    RECOG_SUCCESS,
+} RECOG_NOTIFY_EVENT;
+
+typedef struct RECOG_NOTIFY_DATA_t
+{
+    RECOG_NOTIFY_EVENT event;
+    CONST VOID* data;
+} RECOG_NOTIFY_DATA, *LPRECOG_NOTIFY_DATA;
+
+typedef void(*PFUNC_RECOG_NOTIFY)(WPARAM wParam, LPARAM lParam, LPRECOG_NOTIFY_DATA lpNotifyData);
 
 class CWaveToText
 {
@@ -21,8 +34,8 @@ public:
     ~CWaveToText();
 
 public:
+    void SetRecognitionCallback(PFUNC_RECOG_NOTIFY callback, WPARAM wParam, LPARAM lParam);
     void SetInputWaveFile(LPCTSTR lpszFile);
-    void SetRecognitionCallback(RECOGNITIONFUNC callback, WPARAM wParam, LPARAM lParam);
     int Start();
     int Stop();
 
@@ -33,13 +46,12 @@ protected:
     static void __stdcall NotifyCallback(WPARAM wParam, LPARAM lParam);
 
 private:
-    TCHAR   m_strFileName[MAX_PATH];
-    RECOGNITIONFUNC m_fnRecognitionCallback;
-    WPARAM  m_wpCallback;
-    LPARAM  m_lpCallback;
     CComPtr<ISpRecognizer>      m_recognizer;
     CComPtr<ISpRecoContext>     m_context;
     CComPtr<ISpRecoGrammar>     m_grammer;
-    BOOL m_bFinishProcessing;
+    PFUNC_RECOG_NOTIFY m_fnRecognitionCallback;
+    TCHAR   m_strFileName[MAX_PATH];
+    WPARAM  m_wpCallback;
+    LPARAM  m_lpCallback;
 };
 

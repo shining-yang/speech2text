@@ -54,29 +54,57 @@ void AppendRecognizedText(HWND hWnd, LPCTSTR lpszText)
     cr.cpMin = nCurLen;
     cr.cpMax = -1;
 
-    // 将文本追加到末尾
     SendMessage(hWnd, EM_EXSETSEL, 0, (LPARAM)&cr);
     SendMessage(hWnd, EM_REPLACESEL, (WPARAM)&cr, (LPARAM)lpszText);
-
-    // 将滚动条移到最底端
     SendMessage(hWnd, WM_VSCROLL, (WPARAM)SB_BOTTOM, 0);
-}
-
-void SpeechRecognitionCallback(WPARAM wParam, LPARAM lParam, LPCTSTR lpszText)
-{
-    HWND hWnd = reinterpret_cast<HWND>(wParam);
-    HWND hRichEdit = ::GetDlgItem(hWnd, IDC_RICHEDIT_RESULT);
-    if (hRichEdit) {
-        AppendRecognizedText(hRichEdit, lpszText);
-        AppendRecognizedText(hRichEdit, _T("\n"));
-    }
 }
 
 void EnableDialogItem(HWND hDlg, UINT nIdDlgItem, BOOL bEnable)
 {
-    HWND hWndItem = ::GetDlgItem(hDlg, nIdDlgItem);
+    HWND hWndItem = GetDlgItem(hDlg, nIdDlgItem);
     if (hWndItem) {
-        ::EnableWindow(hWndItem, bEnable);
+        EnableWindow(hWndItem, bEnable);
+    }
+}
+
+void RecognitionNotifyStarted(HWND hWnd)
+{
+    SetDlgItemText(hWnd, IDC_STATIC_LOG, _T("Recognition has started"));
+}
+
+void RecognitionNotifyEnded(HWND hWnd)
+{
+    SetDlgItemText(hWnd, IDC_STATIC_LOG, _T("Recognition has stopped"));
+    EnableDialogItem(hWnd, IDC_BUTTON_START, TRUE);
+    EnableDialogItem(hWnd, IDC_BUTTON_STOP, FALSE);
+    SetDlgItemText(hWnd, IDC_STATIC_LOG, _T(""));
+}
+
+void RecognitionNotifySuccess(HWND hWnd, CONST VOID* pData)
+{
+    SetDlgItemText(hWnd, IDC_STATIC_LOG, _T("Recognition is processing ..."));
+
+    HWND hRichEdit = ::GetDlgItem(hWnd, IDC_RICHEDIT_RESULT);
+    if (hRichEdit) {
+        AppendRecognizedText(hRichEdit, reinterpret_cast<LPCTSTR>(pData));
+        AppendRecognizedText(hRichEdit, _T("\n"));
+    }
+}
+
+void SpeechRecognitionCallback(WPARAM wParam, LPARAM lParam, LPRECOG_NOTIFY_DATA lpNotifyData)
+{
+    HWND hWnd = reinterpret_cast<HWND>(wParam);
+
+    switch (lpNotifyData->event) {
+    case RECOG_STARTED:
+        RecognitionNotifyStarted(hWnd);
+        break;
+    case RECOG_ENDED:
+        RecognitionNotifyEnded(hWnd);
+        break;
+    case RECOG_SUCCESS:
+        RecognitionNotifySuccess(hWnd, lpNotifyData->data);
+        break;
     }
 }
 
@@ -90,22 +118,21 @@ void LaunchRecognition(HWND hWnd)
         return;
     }
 
-    EnableDialogItem(hWnd, IDC_BUTTON_START, FALSE);
-    EnableDialogItem(hWnd, IDC_BUTTON_STOP, TRUE);
-    ::SetDlgItemText(hWnd, IDC_RICHEDIT_RESULT, _T(""));
-
     wtt.SetInputWaveFile(szFile);
     wtt.SetRecognitionCallback(SpeechRecognitionCallback, reinterpret_cast<WPARAM>(hWnd), 0);
     if (wtt.Start() != 0) {
         ::MessageBox(hWnd, _T("Fail to convert audio to text."), _T("Error"), MB_OK);
         return;
+    } else {
+        SetDlgItemText(hWnd, IDC_RICHEDIT_RESULT, _T(""));
+        EnableDialogItem(hWnd, IDC_BUTTON_START, FALSE);
+        EnableDialogItem(hWnd, IDC_BUTTON_STOP, TRUE);
     }
 }
 
 void StopRecognition(HWND hWnd)
 {
-    EnableDialogItem(hWnd, IDC_BUTTON_START, TRUE);
-    EnableDialogItem(hWnd, IDC_BUTTON_STOP, FALSE);
+    wtt.Stop();
 }
 
 INT_PTR CALLBACK AboutDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
@@ -131,6 +158,8 @@ void ShowAboutDialogBox(HWND hWnd)
 
 void OnInitMainDialog(HWND hWnd)
 {
+    CONST TCHAR* lpszText = _T("Please specify a wave-formatted audio file to proceed.");
+    SetDlgItemText(hWnd, IDC_EDIT_INPUT_FILE, lpszText);
     EnableDialogItem(hWnd, IDC_BUTTON_START, TRUE);
     EnableDialogItem(hWnd, IDC_BUTTON_STOP, FALSE);
 }

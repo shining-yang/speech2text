@@ -19,18 +19,18 @@ CWaveToText::~CWaveToText()
     CleanUp();
 }
 
+void CWaveToText::SetRecognitionCallback(PFUNC_RECOG_NOTIFY callback, WPARAM wParam, LPARAM lParam)
+{
+    m_fnRecognitionCallback = callback;
+    m_wpCallback = wParam;
+    m_lpCallback = lParam;
+}
+
 void CWaveToText::SetInputWaveFile(LPCTSTR lpszFile)
 {
     if (lpszFile) {
         StringCchCopy(m_strFileName, MAX_PATH, lpszFile);
     }
-}
-
-void CWaveToText::SetRecognitionCallback(RECOGNITIONFUNC callback, WPARAM wParam, LPARAM lParam)
-{
-    m_fnRecognitionCallback = callback;
-    m_wpCallback = wParam;
-    m_lpCallback = lParam;
 }
 
 int CWaveToText::Start()
@@ -59,8 +59,8 @@ int CWaveToText::Start()
         SPFM_OPEN_READONLY,
         &inputFormat.FormatId(),
         inputFormat.WaveFormatExPtr(),
-        SPFEI(SPEI_SOUND_START) | SPFEI(SPEI_SOUND_END) |
-        SPFEI(SPEI_PHRASE_START) | SPFEI(SPEI_RECOGNITION));
+        SPFEI_ALL_EVENTS);
+
     if (FAILED(hr)) {
         throw std::string("Fail to BindToFile");
     }
@@ -92,7 +92,8 @@ int CWaveToText::Start()
         SPFEI(SPEI_FALSE_RECOGNITION) | SPFEI(SPEI_HYPOTHESIS) |
         SPFEI(SPEI_INTERFERENCE) | SPFEI(SPEI_RECO_OTHER_CONTEXT) |
         SPFEI(SPEI_REQUEST_UI) | SPFEI(SPEI_RECO_STATE_CHANGE) |
-        SPFEI(SPEI_PROPERTY_NUM_CHANGE) | SPFEI(SPEI_PROPERTY_STRING_CHANGE);
+        SPFEI(SPEI_PROPERTY_NUM_CHANGE) | SPFEI(SPEI_PROPERTY_STRING_CHANGE |
+        SPFEI(SPEI_START_SR_STREAM) | SPFEI(SPEI_END_SR_STREAM));
 
     hr = m_context->SetInterest(ullInterest, ullInterest);
     if (FAILED(hr)) {
@@ -119,12 +120,20 @@ int CWaveToText::Start()
 
 int CWaveToText::Stop()
 {
+    m_context->SetContextState(SPCS_DISABLED);
+
+    if (m_fnRecognitionCallback) {
+        RECOG_NOTIFY_DATA nd;
+        nd.event = RECOG_ENDED;
+        nd.data = NULL;
+        (*m_fnRecognitionCallback)(m_wpCallback, m_lpCallback, &nd);
+    }
+
     return 0;
 }
 
 void CWaveToText::Init()
 {
-    m_bFinishProcessing = FALSE;
     ZeroMemory(m_strFileName, sizeof(m_strFileName));
 
     if (FAILED(::CoInitialize(NULL))) {
@@ -146,8 +155,6 @@ void CWaveToText::CleanUp()
     if (m_recognizer) {
         m_recognizer.Release();
     }
-
-    m_bFinishProcessing = FALSE;
 }
 
 LPCTSTR CWaveToText::ExtractInput(CSpEvent& event)
@@ -162,7 +169,6 @@ LPCTSTR CWaveToText::ExtractInput(CSpEvent& event)
         if (event.eEventId == SPEI_FALSE_RECOGNITION) {
             pwszText = _T("False recognition");
         } else {
-            // Get the phrase's entire text string, including replacements.
             hr = cpRecoResult->GetText(SP_GETWHOLEPHRASE, SP_GETWHOLEPHRASE, TRUE, &pwszText, NULL);
         }
     }
@@ -176,23 +182,34 @@ void __stdcall CWaveToText::NotifyCallback(WPARAM wParam, LPARAM lParam)
     CWaveToText* pObj = reinterpret_cast<CWaveToText*>(wParam);
 
     CSpEvent event;
-    LPCTSTR  lpszText;
+    LPCTSTR lpszText;
+    RECOG_NOTIFY_DATA nd;
 
-    if (pObj->m_bFinishProcessing) {
-        return;
-    }
-
-    // Loop processing events while there are any in the queue
     while (event.GetFrom(pObj->m_context) == S_OK) {
         switch (event.eEventId) {
-        case SPEI_RECOGNITION:
-            lpszText = pObj->ExtractInput(event);
-            pObj->m_fnRecognitionCallback(pObj->m_wpCallback, pObj->m_lpCallback, lpszText);
-            break;
         case SPEI_FALSE_RECOGNITION:
             break;
+        case SPEI_RECOGNITION:
+            lpszText = pObj->ExtractInput(event);
+            if (pObj->m_fnRecognitionCallback) {
+                nd.event = RECOG_SUCCESS;
+                nd.data = reinterpret_cast<CONST VOID*>(lpszText);
+                (*pObj->m_fnRecognitionCallback)(pObj->m_wpCallback, pObj->m_lpCallback, &nd);
+            }
+            break;
+        case SPEI_START_SR_STREAM:
+            if (pObj->m_fnRecognitionCallback) {
+                nd.event = RECOG_STARTED;
+                nd.data = NULL;
+                (*pObj->m_fnRecognitionCallback)(pObj->m_wpCallback, pObj->m_lpCallback, &nd);
+            }
+            break;
         case SPEI_END_SR_STREAM:
-            pObj->m_bFinishProcessing = true;
+            if (pObj->m_fnRecognitionCallback) {
+                nd.event = RECOG_ENDED;
+                nd.data = NULL;
+                (*pObj->m_fnRecognitionCallback)(pObj->m_wpCallback, pObj->m_lpCallback, &nd);
+            }
             break;
         }
     }
