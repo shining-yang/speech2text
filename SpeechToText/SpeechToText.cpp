@@ -139,7 +139,7 @@ void LaunchRecognition(HWND hWnd)
 void StopRecognition(HWND hWnd)
 {
     EnableDialogItem(hWnd, IDC_BUTTON_STOP, FALSE);
-
+    SetDlgItemText(hWnd, IDC_STATIC_LOG, _T("Recognition engine is stopping ..."));
     g_wtt.Stop();
 }
 
@@ -164,12 +164,25 @@ void ShowAboutDialogBox(HWND hWnd)
     DialogBox(g_hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, AboutDialogProc);
 }
 
+void InitRicheditCtrl(HWND hWnd)
+{
+    HWND hRichEdit = GetDlgItem(hWnd, IDC_RICHEDIT_RESULT);
+    if (!hRichEdit) {
+        return;
+    }
+
+    SendMessage(hRichEdit, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), (LPARAM)FALSE);
+    SendMessage(hRichEdit, EM_SETEVENTMASK, 0, (LPARAM)(ENM_KEYEVENTS | ENM_MOUSEEVENTS));
+}
+
 void OnInitMainDialog(HWND hWnd)
 {
     CONST TCHAR* lpszText = _T("Please specify a wave-formatted audio file to proceed.");
     SetDlgItemText(hWnd, IDC_EDIT_INPUT_FILE, lpszText);
     EnableDialogItem(hWnd, IDC_BUTTON_START, TRUE);
     EnableDialogItem(hWnd, IDC_BUTTON_STOP, FALSE);
+
+    InitRicheditCtrl(hWnd);
 
     // {{ Shell Notification Icon
     ZeroMemory(&g_nid, sizeof(NOTIFYICONDATA));
@@ -199,9 +212,114 @@ void ShowOrHideMainWindow(HWND hWnd)
     }
 }
 
+void OnResultRicheditNotifyRButtonDown(HWND hWnd, WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER(wParam);
+    HWND hRichEdit = GetDlgItem(hWnd, IDC_RICHEDIT_RESULT);
+    if (!hRichEdit) {
+        return;
+    }
+
+    HMENU hMenu = LoadMenu(NULL, MAKEINTRESOURCE(IDC_SPEECHTOTEXT));
+    if (hMenu == NULL) {
+        return;
+    }
+
+    HMENU hMenuPopup = GetSubMenu(hMenu, 0);
+    if (hMenuPopup == NULL) {
+        return;
+    }
+
+    POINT pt = { LOWORD(lParam), HIWORD(lParam) };
+    ClientToScreen(hRichEdit, &pt);
+
+    GETTEXTLENGTHEX gtlex;
+    gtlex.codepage = 1200;
+    gtlex.flags = GTL_DEFAULT;
+    int nCurLen;
+    nCurLen = (int)SendMessage(hRichEdit, EM_GETTEXTLENGTHEX, (WPARAM)&gtlex, 0);
+    if (nCurLen <= 0) {
+        EnableMenuItem(hMenuPopup, IDM_RESULT_SELECTALL, MF_BYCOMMAND | MF_GRAYED);
+    }
+
+    CHARRANGE cr = { 0 };
+    SendMessage(hRichEdit, EM_EXGETSEL, 0, (LPARAM)&cr);
+    if (cr.cpMin == cr.cpMax) {
+        EnableMenuItem(hMenuPopup, IDM_RESULT_COPY, MF_BYCOMMAND | MF_GRAYED);
+    }
+
+    TrackPopupMenuEx(hMenuPopup, TPM_LEFTALIGN | TPM_LEFTBUTTON, pt.x, pt.y, hWnd, NULL);
+    DestroyMenu(hMenuPopup);
+}
+
+void OnRichEditResultClear(HWND hWnd)
+{
+    SetDlgItemText(hWnd, IDC_RICHEDIT_RESULT, _T(""));
+}
+
+void OnRichEditResultCopy(HWND hWnd)
+{
+    SendDlgItemMessage(hWnd, IDC_RICHEDIT_RESULT, WM_COPY, 0, 0);
+}
+
+void OnRichEditResultSelectAll(HWND hWnd)
+{
+    CHARRANGE cr;
+    cr.cpMin = 0;
+    cr.cpMax = -1;
+    SendDlgItemMessage(hWnd, IDC_RICHEDIT_RESULT, EM_EXSETSEL, 0, (LPARAM)&cr);
+}
+
+void OnResultRicheditNotifyKeyUp(HWND hWnd, WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER(lParam);
+    UINT nVKey = (UINT)wParam;
+    switch (nVKey) {
+    case VK_DELETE:
+        OnRichEditResultClear(hWnd);
+        break;
+    }
+}
+
+void OnResultRicheditNotify(HWND hWnd, WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER(wParam);
+    NMHDR* nmhdr = (NMHDR*)lParam;
+    MSGFILTER* msgFilter = NULL;
+
+    switch (nmhdr->code) {
+    case EN_MSGFILTER:
+        msgFilter = (MSGFILTER*)lParam;
+        switch (msgFilter->msg) {
+        case WM_RBUTTONDOWN:
+            OnResultRicheditNotifyRButtonDown(hWnd, msgFilter->wParam, msgFilter->lParam);
+            break;
+
+        case WM_KEYDOWN:
+            OnResultRicheditNotifyKeyUp(hWnd, msgFilter->wParam, msgFilter->lParam);
+            break;
+        }
+        break;
+    }
+}
+
+void OnCtrlNotify(HWND hWnd, WPARAM wParam, LPARAM lParam)
+{
+    NMHDR* nmhdr = (NMHDR*)lParam;
+    switch (nmhdr->idFrom) {
+    case IDC_RICHEDIT_RESULT:
+        OnResultRicheditNotify(hWnd, wParam, lParam);
+        break;
+    }
+}
+
 BOOL CALLBACK MainDiagProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message) {
+    case WM_NOTIFY:
+        OnCtrlNotify(hWnd, wParam, lParam);
+        break;
+
     case WM_INITDIALOG:
         OnInitMainDialog(hWnd);
         break;
@@ -233,6 +351,15 @@ BOOL CALLBACK MainDiagProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam
             g_bChildWndShown = TRUE;
             ShowAboutDialogBox(hWnd);
             g_bChildWndShown = FALSE;
+            break;
+        case IDM_RESULT_COPY:
+            OnRichEditResultCopy(hWnd);
+            break;
+        case IDM_RESULT_CLEAR:
+            OnRichEditResultClear(hWnd);
+            break;
+        case IDM_RESULT_SELECTALL:
+            OnRichEditResultSelectAll(hWnd);
             break;
         }
         break;
