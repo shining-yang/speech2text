@@ -1,6 +1,6 @@
 //
 // Practices on Speech Recognition.
-// Using Microsoft Speech API (SAPI) 5.3
+// Using Microsoft Speech API (SAPI)
 //
 // y.s.n@live.com, 2014-09
 //

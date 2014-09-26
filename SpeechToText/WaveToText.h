@@ -9,7 +9,7 @@
 //
 #pragma once
 
-#include <sapi.h>
+#include <sphelper.h>
 #include <string>
 
 typedef enum RECOG_NOTIFY_EVENT_t
