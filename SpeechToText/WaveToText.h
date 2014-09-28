@@ -25,7 +25,7 @@ typedef struct RECOG_NOTIFY_DATA_t
     CONST VOID* data;
 } RECOG_NOTIFY_DATA, *LPRECOG_NOTIFY_DATA;
 
-typedef void(*PFUNC_RECOG_NOTIFY)(WPARAM wParam, LPARAM lParam, LPRECOG_NOTIFY_DATA lpNotifyData);
+typedef void (*PFUNC_RECOG_NOTIFY)(WPARAM wParam, LPARAM lParam, LPRECOG_NOTIFY_DATA lpNotifyData);
 
 class CWaveToText
 {

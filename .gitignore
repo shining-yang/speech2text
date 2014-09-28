@@ -154,3 +154,7 @@ $RECYCLE.BIN/
 
 # Mac desktop service store files
 .DS_Store
+
+# Manually excluded items
+Release_vs2013_xp/
+SpeechToText/Release_vs2013_xp/
