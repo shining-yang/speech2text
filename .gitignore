@@ -158,3 +158,5 @@ $RECYCLE.BIN/
 # Manually excluded items
 Release_vs2013_xp/
 SpeechToText/Release_vs2013_xp/
+SpeechToText/Debug_vs2013_xp/
+Debug_vs2013_xp/

@@ -127,13 +127,16 @@ void LaunchRecognition(HWND hWnd)
 
     g_wtt.SetInputWaveFile(szFile);
     g_wtt.SetRecognitionCallback(SpeechRecognitionCallback, reinterpret_cast<WPARAM>(hWnd), 0);
-    if (g_wtt.Start() != 0) {
-        ::MessageBox(hWnd, _T("Fail to convert audio to text."), _T("Error"), MB_OK);
-        EnableDialogItem(hWnd, IDC_BUTTON_START, TRUE);
+    int ret = g_wtt.Start();
+    if (ret != 0) {
+        TCHAR szMsg[MAX_PATH];
+        _stprintf_s(szMsg, MAX_PATH, _T("SAPI failed. Error code: %d"), ret);
+        ::MessageBox(hWnd, szMsg, _T("Error"), MB_OK);
+        EnableDialogItem(hWnd, IDC_BUTTON_START, TRUE); // restore on failure
         return;
-    } else {
-        SetDlgItemText(hWnd, IDC_RICHEDIT_RESULT, _T(""));
     }
+
+    SetDlgItemText(hWnd, IDC_RICHEDIT_RESULT, _T(""));
 }
 
 void StopRecognition(HWND hWnd)
