@@ -3,7 +3,7 @@
 //
 // Declaration for class CWaveToText.
 //
-// Convert wave audio file to text messages using Microsoft SAPI.
+// Convert wave audio file to text messages using Microsoft Speech API (SAPI).
 //
 // Shining Yang <y.s.n@live.com>, 2014-09-24
 //

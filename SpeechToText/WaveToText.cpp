@@ -1,7 +1,7 @@
 //
 // File: WaveToText
 //
-// Convert wave audio file to text messages using Microsoft SAPI.
+// Convert wave audio file to text messages using Microsoft Speech API (SAPI).
 //
 // Shining Yang <y.s.n@live.com>, 2014-09-24
 //
@@ -42,6 +42,14 @@ int CWaveToText::Start()
     CleanUp();
 
     HRESULT hr = S_OK;
+
+    // Find the best matching installed zh-CN recognizer.
+    CComPtr<ISpObjectToken> cpRecognizerToken;
+
+    if (SUCCEEDED(hr)) {
+        hr = SpFindBestToken(SPCAT_RECOGNIZERS, _T("language=804"), NULL, &cpRecognizerToken);
+    }
+
     CComPtr<ISpStream> spInputStream;
     hr = spInputStream.CoCreateInstance(CLSID_SpStream);
     if (FAILED(hr)) {
@@ -65,10 +73,14 @@ int CWaveToText::Start()
         throw std::string("Fail to BindToFile");
     }
 
-    ULONGLONG ullGramId = 1;
     hr = m_recognizer.CoCreateInstance(CLSID_SpInprocRecognizer);
     if (FAILED(hr)) {
         throw std::string("Unable to create recognition engine");
+    }
+
+    hr = m_recognizer->SetRecognizer(cpRecognizerToken);
+    if (FAILED(hr)) {
+        throw std::string("Unable to SetRecognizer");
     }
 
     hr = m_recognizer->SetInput(spInputStream, TRUE);
@@ -105,7 +117,7 @@ int CWaveToText::Start()
         throw std::string("Unable to create grammar");
     }
 
-    hr = m_grammer->LoadDictation(0, SPLO_STATIC);
+    hr = m_grammer->LoadDictation(NULL, SPLO_STATIC);
     if (FAILED(hr)) {
         throw std::string("Failed to load dictation");
     }
