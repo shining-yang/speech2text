@@ -47,58 +47,49 @@ int CWaveToText::Start()
     CComPtr<ISpObjectToken> cpRecognizerToken;
     hr = SpFindBestToken(SPCAT_RECOGNIZERS, _T("language=804"), NULL, &cpRecognizerToken);
     if (FAILED(hr)) {
-        //throw std::string("Fail to find best token");
         return -1000;
     }
 
     CComPtr<ISpStream> spInputStream;
     hr = spInputStream.CoCreateInstance(CLSID_SpStream);
     if (FAILED(hr)) {
-        //throw std::string("Fail to create ISpStream");
         return -1001;
     }
 
     CSpStreamFormat inputFormat;
     hr = inputFormat.AssignFormat(SPSF_22kHz16BitStereo);
     if (FAILED(hr)) {
-        //throw std::string("Fail to AssignFormat");
         return -1002;
     }
 
     hr = spInputStream->BindToFile(m_strFileName, SPFM_OPEN_READONLY,
         &inputFormat.FormatId(), inputFormat.WaveFormatExPtr(), SPFEI_ALL_EVENTS);
     if (FAILED(hr)) {
-        //throw std::string("Fail to BindToFile");
         return -1003;
     }
 
     hr = m_recognizer.CoCreateInstance(CLSID_SpInprocRecognizer);
     if (FAILED(hr)) {
-        //throw std::string("Unable to create recognition engine");
         return -1004;
     }
 
     hr = m_recognizer->SetRecognizer(cpRecognizerToken);
     if (FAILED(hr)) {
-        //throw std::string("Unable to SetRecognizer");
         return -1005;
     }
 
     hr = m_recognizer->SetInput(spInputStream, TRUE);
     if (FAILED(hr)) {
-        //throw std::string("Unable to SetInput");
         return -1006;
     }
 
     hr = m_recognizer->CreateRecoContext(&m_context);
     if (FAILED(hr)) {
-        //throw std::string("Failed command recognition");
         return -1007;
     }
 
     hr = m_context->SetNotifyCallbackFunction(CWaveToText::NotifyCallback, reinterpret_cast<WPARAM>(this), 0);
     if (FAILED(hr)) {
-        //throw std::string("Unable to set notify callback function");
         return -1008;
     }
 
@@ -113,25 +104,21 @@ int CWaveToText::Start()
 
     hr = m_context->SetInterest(ullInterest, ullInterest);
     if (FAILED(hr)) {
-        //throw std::string("Failed to create interest");
         return -1009;
     }
 
     hr = m_context->CreateGrammar(0, &m_grammer);
     if (FAILED(hr)) {
-        //throw std::string("Unable to create grammar");
         return -1010;
     }
 
     hr = m_grammer->LoadDictation(NULL, SPLO_STATIC);
     if (FAILED(hr)) {
-        //throw std::string("Failed to load dictation");
         return -1011;
     }
 
     hr = m_grammer->SetDictationState(SPRS_ACTIVE);
     if (FAILED(hr)) {
-        //throw std::string("Failed setting dictation state");
         return -1012;
     }
 
